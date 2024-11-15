@@ -33,14 +33,14 @@ accumulator was.
 -- Here is our expression data type
 
 data Expr = -- Arithmetic
-            Const Int | Plus Expr Expr 
+            Const Int | Plus Expr Expr
             -- λ-calculus
           | Var String | Lam String Expr | App Expr Expr
             -- accumulator
-          | Store Expr | Recall 
+          | Store Expr | Recall
             -- exceptions
-          | Throw Expr | Catch Expr String Expr 
-  deriving Eq          
+          | Throw Expr | Catch Expr String Expr
+  deriving Eq
 
 deriving instance Show Expr
 
@@ -59,7 +59,7 @@ instance Show Expr where
   showsPrec i Recall    = showString "recall"
   showsPrec i (Throw m) = showParen (i > 2) $ showString "throw " . showsPrec 3 m
   showsPrec i (Catch m y n) = showParen (i > 0) $ showString "try " . showsPrec 0 m . showString " catch " . showString y . showString " -> " . showsPrec 0 n
--}  
+-}
 
 -- Values are, as usual, integer and function constants
 isValue :: Expr -> Bool
@@ -96,19 +96,22 @@ be replaced by the substitution?
 -------------------------------------------------------------------------------}
 
 substUnder :: String -> Expr -> String -> Expr -> Expr
-substUnder x m y n 
+substUnder x m y n
   | x == y = n
   | otherwise = subst x m n
 
 subst :: String -> Expr -> Expr -> Expr
 subst _ _ (Const i) = Const i
 subst x m (Plus n1 n2) = Plus (subst x m n1) (subst x m n2)
-subst x m (Var y) 
+subst x m (Var y)
   | x == y = m
   | otherwise = Var y
 subst x m (Lam y n) = Lam y (substUnder x m y n)
 subst x m (App n1 n2) = App (subst x m n1) (subst x m n2)
-subst x m n = undefined
+subst x m Recall = Recall
+subst x m (Throw n) = Throw (subst x m n)
+subst x m (Catch n1 s1 n2) = Catch (subst x m n1) s1 (substUnder x m s1 n2)
+subst x m (Store n) = Store (subst x m n)
 
 {-------------------------------------------------------------------------------
 
@@ -202,7 +205,27 @@ bubble; this won't *just* be `Throw` and `Catch.
 -------------------------------------------------------------------------------}
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
-smallStep = undefined
+smallStep (Const _, _) = Nothing
+smallStep (Throw n, a) = Nothing
+smallStep (Plus (Const x) (Const y), a) = Just (Const (x+y),a)
+smallStep (Plus (Throw n) _, a) = Just (Throw n, a)
+smallStep (Plus (Const x) (Throw n), a) = Just (Throw n, a)
+smallStep (Plus (Plus n1 n2) (Throw n), a) = case ()
+--smallStep (Plus (Throw n1) n2 , a) = case (smallStep (n1,a), smallStep(n2,a)) of
+                                     --_ -> Nothing
+--smallStep (Plus n1 (Throw n2) , a) = case (smallStep(n1,a),smallStep (n2,a)) of
+                                      --(_, Just(Throw n, a')) -> Just (Throw n , a')
+                                      --_ -> Nothing
+smallStep (Plus n1 n2, a) = case (smallStep (n1,a),smallStep (n2,a)) of
+                            (Just (n, a'), _) -> Just (Plus n n2 , a')
+                            (_, Just(n, a')) -> Just (Plus n1 n, a')
+                            _ -> Nothing
+smallStep (Var _, _) = Nothing
+smallStep (Lam _ _, _) = Nothing
+smallStep (App (Lam x m) n, a) | isValue n = Just (subst x n m, a)
+smallStep (App m n, a) = undefined
+smallStep (Recall, a) = Just (a,a)
+smallStep (Store n, a) = Just (n,n)
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
 steps s = case smallStep s of
