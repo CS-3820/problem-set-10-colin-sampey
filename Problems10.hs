@@ -210,12 +210,9 @@ smallStep (Throw n, a) = Nothing
 smallStep (Plus (Const x) (Const y), a) = Just (Const (x+y),a)
 smallStep (Plus (Throw n) _, a) = Just (Throw n, a)
 smallStep (Plus (Const x) (Throw n), a) = Just (Throw n, a)
-smallStep (Plus (Plus n1 n2) (Throw n), a) = case ()
---smallStep (Plus (Throw n1) n2 , a) = case (smallStep (n1,a), smallStep(n2,a)) of
-                                     --_ -> Nothing
---smallStep (Plus n1 (Throw n2) , a) = case (smallStep(n1,a),smallStep (n2,a)) of
-                                      --(_, Just(Throw n, a')) -> Just (Throw n , a')
-                                      --_ -> Nothing
+smallStep (Plus (Plus n1 n2) (Throw n), a) = case (smallStep((Plus n1 n2),a), smallStep((Throw n, a))) of
+                                              ((Just (n',a')), _) -> Just (Plus n' (Throw n), a)
+                                              _ -> Nothing
 smallStep (Plus n1 n2, a) = case (smallStep (n1,a),smallStep (n2,a)) of
                             (Just (n, a'), _) -> Just (Plus n n2 , a')
                             (_, Just(n, a')) -> Just (Plus n1 n, a')
