@@ -206,6 +206,7 @@ bubble; this won't *just* be `Throw` and `Catch.
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
 smallStep (Const _, _) = Nothing
+smallStep (Throw (Throw n), a) = Just (Throw n, a)
 smallStep (Throw n, a) = Nothing
 smallStep (Plus (Const x) (Const y), a) = Just (Const (x+y),a)
 smallStep (Plus (Throw n) _, a) = Just (Throw n, a)
@@ -220,8 +221,29 @@ smallStep (Plus n1 n2, a) = case (smallStep (n1,a),smallStep (n2,a)) of
 smallStep (Var _, _) = Nothing
 smallStep (Lam _ _, _) = Nothing
 smallStep (App (Lam x m) n, a) | isValue n = Just (subst x n m, a)
-smallStep (App m n, a) = undefined
+smallStep (App (Throw n) _, a) = Just (Throw n, a)
+smallStep (App (Const x) (Throw n), a) = Just (Throw n, a)
+smallStep (App (Lam x m) (Throw n) ,a) = Just (Throw n, a)
+smallStep (App (Var x) (Throw n), a) = Just (Throw n,a)
+smallStep (App (Plus n1 n2) (Throw n), a) = case (smallStep (Plus n1 n2, a), smallStep (Throw n, a)) of
+                                              (Just (n',a') , _) -> Just (App n' (Throw n), a')
+                                              _ -> Nothing
+
+smallStep (App m n, a) = case (smallStep (m,a), smallStep (n,a)) of
+                          ((Just (m',a')), _) -> Just (App m' n, a')
+                          (_, (Just (n',a'))) -> Just (App m n', a')
+                          _ -> Nothing
 smallStep (Recall, a) = Just (a,a)
+smallStep (Store (Store n), a) = Just (Store n, a)
+smallStep (Store (Throw n), a) 
+  | isValue n =  Just (Throw n, a)
+  | otherwise =  case (smallStep (n,a)) of
+                  Just (n', a') -> Just(Store (Throw n'), n')
+                  _ -> Nothing
+smallStep (Store (Const n), a) = Just (Const n, Const n)
+smallStep (Store (Plus n1 n2), a) = case (smallStep (Plus n1 n2, a), a) of
+                                    (Just (n', a') , _) -> Just (Store (n'), a')
+                                    _ -> Nothing
 smallStep (Store n, a) = Just (n,n)
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
